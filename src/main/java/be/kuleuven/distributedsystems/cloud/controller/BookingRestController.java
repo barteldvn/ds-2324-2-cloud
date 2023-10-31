@@ -1,13 +1,11 @@
 package be.kuleuven.distributedsystems.cloud.controller;
 
-import be.kuleuven.distributedsystems.cloud.entities.Booking;
 import be.kuleuven.distributedsystems.cloud.entities.Seat;
 import be.kuleuven.distributedsystems.cloud.entities.Train;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.hateoas.CollectionModel;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -49,7 +47,7 @@ public class BookingRestController {
         throw new RemoteException("Train not found");
     }
 
-    @GetMapping("/api/getTrainTimes/{trainCompany}/{trainId}}")
+    @GetMapping("/api/getTrainTimes/{trainCompany}/{trainId}")
     Collection<LocalDateTime> getTrainTimes(@PathVariable String trainCompany, @PathVariable String trainId) throws RemoteException {
         Train train =  getTrain(trainCompany, trainId);
         return webClientBuilder
@@ -57,7 +55,7 @@ public class BookingRestController {
                 .build()
                 .get()
                 .uri(uriBuilder -> uriBuilder
-                        .pathSegment("trains/{id}/times")
+                        .pathSegment("trains", "{id}", "times")
                         .queryParam("key", API_KEY)
                         .build(train.getTrainId()))
                 .retrieve()
@@ -65,21 +63,44 @@ public class BookingRestController {
                 .block()
                 .getContent();
     }
-//
-//
-//    @GetMapping("/api/getAvailableSeats/{trainCompany}/{trainId}/{time}")
-//    Collection<Seat> getAvailableSeats(@PathVariable String trainCompany, @PathVariable String trainId, @PathVariable String time) {
-//        Optional<Meal> meal = mealsRepository.findMeal(id);
-//
-//        return meal.orElseThrow(() -> new MealNotFoundException(id));
-//    }
-//
-//    @GetMapping("/api/getSeat/{trainCompany}/{trainId}/{seatId}")
-//    Seat getSeat(@PathVariable String trainCompany, @PathVariable String trainId, @PathVariable String seatId) {
-//        Optional<Meal> meal = mealsRepository.findMeal(id);
-//
-//        return meal.orElseThrow(() -> new MealNotFoundException(id));
-//    }
+
+
+    @GetMapping("/api/getAvailableSeats/{trainCompany}/{trainId}/{time}")
+    Collection<Seat> getAvailableSeats(@PathVariable String trainCompany, @PathVariable String trainId, @PathVariable String time) throws RemoteException {
+        Train train =  getTrain(trainCompany, trainId);
+        LocalDateTime timeObject = LocalDateTime.parse(time);
+        Collection<Seat> seats = webClientBuilder
+                .baseUrl("https://reliabletrains.com")
+                .build()
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .pathSegment("trains", "{id}", "seats")
+                        .queryParam("time", timeObject)
+                        .queryParam("available", true)
+                        .queryParam("key", API_KEY)
+                        .build(train.getTrainId()))
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<CollectionModel<Seat>>() {})
+                .block()
+                .getContent();
+        HashMap<String, Seat[]> seatMap = new HashMap<>();
+        for (Seat seat : seats){
+            seatMap.putIfAbsent(seat.getType(), new ArrayList<Seat>.add(seat));
+            seatMap.get(seat.getType());
+        }
+        return seats;
+    }
+
+
+    //MAYBE DOES NOT NEED TO BE
+    @GetMapping("/api/getSeat/{trainCompany}/{trainId}/{seatId}")
+    Seat getSeat(@PathVariable String trainCompany, @PathVariable String trainId, @PathVariable String seatId) throws RemoteException {
+        Collection<Seat> seats =  getAvailableSeats(trainCompany, trainId, seatId);
+        for (Seat seat : seats){
+            if (Objects.equals(seat.getSeatId().toString(), seatId)) return seat;
+        }
+        throw new RemoteException("Seat not found");
+    }
 //
 //    @PostMapping("/api/confirmQuotes")
 //    Train confirmQuotes() {
