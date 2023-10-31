@@ -1,6 +1,9 @@
 package be.kuleuven.distributedsystems.cloud.auth;
 
 import be.kuleuven.distributedsystems.cloud.entities.User;
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.interfaces.Claim;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -12,7 +15,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 
 @Component
@@ -22,12 +27,18 @@ public class SecurityFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         // TODO: (level 1) decode Identity Token and assign correct email and role
         // TODO: (level 2) verify Identity Token
-
-        var user = new User("test@example.com", new String[]{});
-        SecurityContext context = SecurityContextHolder.getContext();
-        context.setAuthentication(new FirebaseAuthentication(user));
-
-        filterChain.doFilter(request, response);
+        String idToken = request.getHeader("Authorization");
+        System.out.println(idToken);
+        if(idToken!= null) {
+            int parseIndex = idToken.indexOf(" ");
+            DecodedJWT decodedToken = JWT.decode(idToken.substring(parseIndex+1));
+            String email = decodedToken.getClaim("email").toString();
+            String[] roles = decodedToken.getClaim("roles").asArray(String.class);
+            var user = new User(email, roles);
+            SecurityContext context = SecurityContextHolder.getContext();
+            context.setAuthentication(new FirebaseAuthentication(user));
+            filterChain.doFilter(request, response);
+        }
     }
 
     @Override
