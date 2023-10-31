@@ -51,7 +51,7 @@ public class BookingRestController {
     Collection<LocalDateTime> getTrainTimes(@PathVariable String trainCompany, @PathVariable String trainId) throws RemoteException {
         Train train =  getTrain(trainCompany, trainId);
         return webClientBuilder
-                .baseUrl("https://reliabletrains.com")
+                .baseUrl("https://"+trainCompany+"/")
                 .build()
                 .get()
                 .uri(uriBuilder -> uriBuilder
@@ -69,8 +69,8 @@ public class BookingRestController {
     Collection<Seat> getAvailableSeats(@PathVariable String trainCompany, @PathVariable String trainId, @PathVariable String time) throws RemoteException {
         Train train =  getTrain(trainCompany, trainId);
         LocalDateTime timeObject = LocalDateTime.parse(time);
-        Collection<Seat> seats = webClientBuilder
-                .baseUrl("https://reliabletrains.com")
+        return webClientBuilder
+                .baseUrl("https://"+trainCompany+"/")
                 .build()
                 .get()
                 .uri(uriBuilder -> uriBuilder
@@ -83,23 +83,23 @@ public class BookingRestController {
                 .bodyToMono(new ParameterizedTypeReference<CollectionModel<Seat>>() {})
                 .block()
                 .getContent();
-        HashMap<String, Seat[]> seatMap = new HashMap<>();
-        for (Seat seat : seats){
-            seatMap.putIfAbsent(seat.getType(), new ArrayList<Seat>.add(seat));
-            seatMap.get(seat.getType());
-        }
-        return seats;
     }
 
 
     //MAYBE DOES NOT NEED TO BE
     @GetMapping("/api/getSeat/{trainCompany}/{trainId}/{seatId}")
     Seat getSeat(@PathVariable String trainCompany, @PathVariable String trainId, @PathVariable String seatId) throws RemoteException {
-        Collection<Seat> seats =  getAvailableSeats(trainCompany, trainId, seatId);
-        for (Seat seat : seats){
-            if (Objects.equals(seat.getSeatId().toString(), seatId)) return seat;
-        }
-        throw new RemoteException("Seat not found");
+        return webClientBuilder
+                .baseUrl("https://"+trainCompany+ "/")
+                .build()
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .pathSegment("trains", trainId, "seats", seatId)
+                        .queryParam("key", API_KEY)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<Seat>() {})
+                .block();
     }
 //
 //    @PostMapping("/api/confirmQuotes")
