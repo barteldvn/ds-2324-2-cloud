@@ -19,9 +19,7 @@ public class BookingRestController {
     private final String API_KEY = "JViZPgNadspVcHsMbDFrdGg0XXxyiE";
     @Resource(name = "webClientBuilder")
     private WebClient.Builder webClientBuilder;
-
     private HashMap<String, ArrayList<Booking>> bookingMap;
-
 
     @GetMapping("/api/getTrains")
     Collection<Train> getAllTrains(){
@@ -105,6 +103,7 @@ public class BookingRestController {
     @PostMapping("/api/confirmQuotes")
     void confirmQuotes(@RequestBody List<Seat> seats) {
         Collection<Ticket> tickets = new HashSet<>();
+        UUID bookingUUID = UUID.randomUUID();
         for (Seat seat : seats) {
               tickets.add(webClientBuilder
                     .baseUrl("https://" + seat.getTrainCompany() + "/")
@@ -113,18 +112,18 @@ public class BookingRestController {
                     .uri(uriBuilder -> uriBuilder
                             .pathSegment("trains", seat.getTrainId().toString(), "seats", seat.getSeatId().toString(), "ticket")
                             .queryParam("customer", SecurityFilter.getUser().getEmail())
-                            .queryParam("bookingReference", UUID.fromString(seat.getSeatId().toString()))
+                            .queryParam("bookingReference", bookingUUID.toString())
                             .queryParam("key", API_KEY)
                             .build())
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Ticket>() {})
                     .block());
         }
-        Booking booking = new Booking(UUID.randomUUID(), LocalDateTime.now(), tickets.stream().toList(), SecurityFilter.getUser().getEmail());
+        Booking booking = new Booking(bookingUUID, LocalDateTime.now(), tickets.stream().toList(), SecurityFilter.getUser().getEmail());
         ArrayList<Booking> bookings = bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());
         bookings.add(booking);
     }
-//
+
     @GetMapping("/api/getBookings")
     Collection<Booking> getBookings() {
         return bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());

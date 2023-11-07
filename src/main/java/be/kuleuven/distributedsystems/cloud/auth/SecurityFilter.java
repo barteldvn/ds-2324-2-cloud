@@ -28,17 +28,15 @@ public class SecurityFilter extends OncePerRequestFilter {
         // TODO: (level 1) decode Identity Token and assign correct email and role
         // TODO: (level 2) verify Identity Token
         String idToken = request.getHeader("Authorization");
-        System.out.println(idToken);
         if(idToken!= null) {
-            try {
                 int parseIndex = idToken.indexOf(" ");
                 DecodedJWT decodedToken = JWT.decode(idToken.substring(parseIndex + 1));
-                String email = decodedToken.getClaim("email").toString();
+                String email = String.valueOf(decodedToken.getClaim("email"));
+                email = email.substring(1, email.length()-1);
                 String[] roles = decodedToken.getClaim("roles").asArray(String.class);
                 User user = new User(email, roles);
                 SecurityContext context = SecurityContextHolder.getContext();
                 context.setAuthentication(new FirebaseAuthentication(user));
-                System.out.println(request.getRequestURI());
                 if(checkRestrictedRequests(request.getRequestURI())){
                     if(user.isManager()){
                         filterChain.doFilter(request, response);
@@ -46,9 +44,6 @@ public class SecurityFilter extends OncePerRequestFilter {
                 } else {
                     filterChain.doFilter(request, response);
                 }
-            } catch (Exception e) {
-                throw new IOException();
-            }
         }
     }
 
