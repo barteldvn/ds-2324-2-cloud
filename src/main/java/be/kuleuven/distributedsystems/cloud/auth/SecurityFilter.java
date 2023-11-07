@@ -30,6 +30,7 @@ public class SecurityFilter extends OncePerRequestFilter {
         String idToken = request.getHeader("Authorization");
         System.out.println(idToken);
         if(idToken!= null) {
+            try {
                 System.out.println("here" + request.getRequestURI());
                 int parseIndex = idToken.indexOf(" ");
                 DecodedJWT decodedToken = JWT.decode(idToken.substring(parseIndex + 1));
@@ -47,6 +48,9 @@ public class SecurityFilter extends OncePerRequestFilter {
                 } else {
                     filterChain.doFilter(request, response);
                 }
+            } catch (Exception e) {
+                throw e;
+            }
         }
     }
 
