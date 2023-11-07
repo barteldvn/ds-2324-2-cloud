@@ -30,15 +30,30 @@ public class SecurityFilter extends OncePerRequestFilter {
         String idToken = request.getHeader("Authorization");
         System.out.println(idToken);
         if(idToken!= null) {
-            int parseIndex = idToken.indexOf(" ");
-            DecodedJWT decodedToken = JWT.decode(idToken.substring(parseIndex+1));
-            String email = decodedToken.getClaim("email").toString();
-            String[] roles = decodedToken.getClaim("roles").asArray(String.class);
-            var user = new User(email, roles);
-            SecurityContext context = SecurityContextHolder.getContext();
-            context.setAuthentication(new FirebaseAuthentication(user));
-            filterChain.doFilter(request, response);
+            try {
+                int parseIndex = idToken.indexOf(" ");
+                DecodedJWT decodedToken = JWT.decode(idToken.substring(parseIndex + 1));
+                String email = decodedToken.getClaim("email").toString();
+                String[] roles = decodedToken.getClaim("roles").asArray(String.class);
+                User user = new User(email, roles);
+                SecurityContext context = SecurityContextHolder.getContext();
+                context.setAuthentication(new FirebaseAuthentication(user));
+                System.out.println(request.getRequestURI());
+                if(checkRestrictedRequests(request.getRequestURI())){
+                    if(user.isManager()){
+                        filterChain.doFilter(request, response);
+                    }
+                } else {
+                    filterChain.doFilter(request, response);
+                }
+            } catch (Exception e) {
+                throw new IOException();
+            }
         }
+    }
+
+    public boolean checkRestrictedRequests(String s){
+        return s.equals("/api/getAllBookings") || s.equals("/api/getBestCustomers");
     }
 
     @Override
