@@ -1,18 +1,17 @@
 package be.kuleuven.distributedsystems.cloud.controller;
 
-import be.kuleuven.distributedsystems.cloud.entities.Seat;
-import be.kuleuven.distributedsystems.cloud.entities.Train;
+import be.kuleuven.distributedsystems.cloud.auth.SecurityFilter;
+import be.kuleuven.distributedsystems.cloud.entities.*;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.hateoas.CollectionModel;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import javax.annotation.Resource;
 import java.rmi.RemoteException;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @RestController
 public class BookingRestController {
@@ -20,6 +19,8 @@ public class BookingRestController {
     private final String API_KEY = "JViZPgNadspVcHsMbDFrdGg0XXxyiE";
     @Resource(name = "webClientBuilder")
     private WebClient.Builder webClientBuilder;
+
+    private HashMap<String, ArrayList<Booking>> bookingMap;
 
 
     @GetMapping("/api/getTrains")
@@ -38,8 +39,8 @@ public class BookingRestController {
                 .getContent();
     }
 
-    @GetMapping("/api/getTrain/{trainCompany}/{trainId}")
-    Train getTrain(@PathVariable String trainCompany, @PathVariable String trainId) throws RemoteException {
+    @GetMapping("/api/getTrain")
+    Train getTrain(@RequestParam String trainCompany, @RequestParam String trainId) throws RemoteException {
         Collection<Train> trains =  getAllTrains();
         for (Train train : trains){
             if (Objects.equals(train.getTrainCompany(), trainCompany) && Objects.equals(train.getTrainId().toString(), trainId)) return train;
@@ -47,8 +48,8 @@ public class BookingRestController {
         throw new RemoteException("Train not found");
     }
 
-    @GetMapping("/api/getTrainTimes/{trainCompany}/{trainId}")
-    Collection<LocalDateTime> getTrainTimes(@PathVariable String trainCompany, @PathVariable String trainId) throws RemoteException {
+    @GetMapping("/api/getTrainTimes")
+    Collection<LocalDateTime> getTrainTimes(@RequestParam String trainCompany, @RequestParam String trainId) throws RemoteException {
         Train train =  getTrain(trainCompany, trainId);
         return webClientBuilder
                 .baseUrl("https://"+trainCompany+"/")
@@ -65,11 +66,11 @@ public class BookingRestController {
     }
 
 
-    @GetMapping("/api/getAvailableSeats/{trainCompany}/{trainId}/{time}")
-    Collection<Seat> getAvailableSeats(@PathVariable String trainCompany, @PathVariable String trainId, @PathVariable String time) throws RemoteException {
+    @GetMapping("/api/getAvailableSeats")
+    Map<String, List <Seat>> getAvailableSeats(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String time) throws RemoteException {
         Train train =  getTrain(trainCompany, trainId);
         LocalDateTime timeObject = LocalDateTime.parse(time);
-        return webClientBuilder
+        Collection<Seat> seats =  webClientBuilder
                 .baseUrl("https://"+trainCompany+"/")
                 .build()
                 .get()
@@ -83,12 +84,11 @@ public class BookingRestController {
                 .bodyToMono(new ParameterizedTypeReference<CollectionModel<Seat>>() {})
                 .block()
                 .getContent();
+        return seats.stream().collect(Collectors.groupingBy(Seat::getType));
     }
 
-
-    //MAYBE DOES NOT NEED TO BE
-    @GetMapping("/api/getSeat/{trainCompany}/{trainId}/{seatId}")
-    Seat getSeat(@PathVariable String trainCompany, @PathVariable String trainId, @PathVariable String seatId) throws RemoteException {
+    @GetMapping("/api/getSeat")
+    Seat getSeat(@RequestParam String trainCompany, @RequestParam String trainId, @RequestParam String seatId) throws RemoteException {
         return webClientBuilder
                 .baseUrl("https://"+trainCompany+ "/")
                 .build()
@@ -101,37 +101,43 @@ public class BookingRestController {
                 .bodyToMono(new ParameterizedTypeReference<Seat>() {})
                 .block();
     }
-//
-//    @PostMapping("/api/confirmQuotes")
-//    Train confirmQuotes() {
-//        Optional<Meal> meal = mealsRepository.findMeal(id);
-//
-//        return meal.orElseThrow(() -> new MealNotFoundException(id));
-//    }
-//
-//    @GetMapping("/api/getBookings")
-//    Collection<Booking> getBookings() {
-//        Optional<Meal> meal = mealsRepository.findMeal(id);
-//
-//        return meal.orElseThrow(() -> new MealNotFoundException(id));
-//    }
-//
-//    @GetMapping("/api/getAllBookings")
-//    Collection<Booking> getAllBookings() {
-//        Optional<Meal> meal = mealsRepository.findMeal(id);
-//
-//        return meal.orElseThrow(() -> new MealNotFoundException(id));
-//    }
-//
-//    @GetMapping("/api/getAllCustomers")
-//    Collection<User> getAllCustomers() {
-//        Optional<Meal> meal = mealsRepository.findMeal(id);
-//
-//        return meal.orElseThrow(() -> new MealNotFoundException(id));
-//    }
 
+    @PostMapping("/api/confirmQuotes")
+    void confirmQuotes(@RequestBody List<Seat> seats) {
+        Collection<Ticket> tickets = new HashSet<>();
+        for (Seat seat : seats) {
+              tickets.add(webClientBuilder
+                    .baseUrl("https://" + seat.getTrainCompany() + "/")
+                    .build()
+                    .put()
+                    .uri(uriBuilder -> uriBuilder
+                            .pathSegment("trains", seat.getTrainId().toString(), "seats", seat.getSeatId().toString(), "ticket")
+                            .queryParam("customer", SecurityFilter.getUser().getEmail())
+                            .queryParam("bookingReference", UUID.fromString(seat.getSeatId().toString()))
+                            .queryParam("key", API_KEY)
+                            .build())
+                    .retrieve()
+                    .bodyToMono(new ParameterizedTypeReference<Ticket>() {})
+                    .block());
+        }
+        Booking booking = new Booking(UUID.randomUUID(), LocalDateTime.now(), tickets.stream().toList(), SecurityFilter.getUser().getEmail());
+        ArrayList<Booking> bookings = bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());
+        bookings.add(booking);
+    }
+//
+    @GetMapping("/api/getBookings")
+    Collection<Booking> getBookings() {
+        return bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());
+    }
 
+    @GetMapping("/api/getAllBookings")
+    Collection<Booking> getAllBookings() {
+        return bookingMap.values().stream().flatMap(List::stream).toList();
+    }
 
-
-
+    @GetMapping("/api/getAllCustomers")
+    Collection<String> getAllCustomers() {
+        Optional<ArrayList<Booking>> maxBookings =  bookingMap.values().stream().max(Comparator.comparing(List::size));
+        return maxBookings.<Collection<String>>map(bookings -> bookings.stream().map(Booking::getCustomer).toList()).orElseGet(ArrayList::new);
+    }
 }
