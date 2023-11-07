@@ -19,7 +19,7 @@ public class BookingRestController {
     private final String API_KEY = "JViZPgNadspVcHsMbDFrdGg0XXxyiE";
     @Resource(name = "webClientBuilder")
     private WebClient.Builder webClientBuilder;
-    private HashMap<String, ArrayList<Booking>> bookingMap;
+    private HashMap<String, ArrayList<Booking>> bookingMap = new HashMap<>();
 
     @GetMapping("/api/getTrains")
     Collection<Train> getAllTrains(){
@@ -122,6 +122,7 @@ public class BookingRestController {
         Booking booking = new Booking(bookingUUID, LocalDateTime.now(), tickets.stream().toList(), SecurityFilter.getUser().getEmail());
         ArrayList<Booking> bookings = bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());
         bookings.add(booking);
+        bookingMap.putIfAbsent(SecurityFilter.getUser().getEmail(), bookings);
     }
 
     @GetMapping("/api/getBookings")
