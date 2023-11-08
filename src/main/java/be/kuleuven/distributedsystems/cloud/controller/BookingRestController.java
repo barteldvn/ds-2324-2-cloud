@@ -135,9 +135,16 @@ public class BookingRestController {
         return bookingMap.values().stream().flatMap(List::stream).toList();
     }
 
-    @GetMapping("/api/getAllCustomers")
-    Collection<String> getAllCustomers() {
-        Optional<ArrayList<Booking>> maxBookings =  bookingMap.values().stream().max(Comparator.comparing(List::size));
-        return maxBookings.<Collection<String>>map(bookings -> bookings.stream().map(Booking::getCustomer).toList()).orElseGet(ArrayList::new);
+    @GetMapping("/api/getBestCustomers")
+    Collection<String> getBestCustomers() {
+        return bookingMap.entrySet().stream()
+                .collect(Collectors.groupingBy(
+                entry -> entry.getValue().size(),
+                Collectors.mapping(Map.Entry::getKey, Collectors.toList())
+                ))
+                .entrySet().stream()
+                .max(Comparator.comparing(Map.Entry::getKey))
+                .map(Map.Entry::getValue)
+                .orElse(new ArrayList<>());
     }
 }
