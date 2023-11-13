@@ -10,8 +10,10 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
+import com.google.pubsub.v1.Subscription;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.hateoas.CollectionModel;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -112,11 +114,11 @@ public class BookingRestController {
     }
 
     @PostMapping("/api/confirmQuotes")
-    void confirmQuotes(@RequestBody String seats) throws ExecutionException, InterruptedException, IOException {
+    void confirmQuotes(@RequestBody String quotes) throws ExecutionException, InterruptedException, IOException {
         System.out.println("test");
         Gson gson = new Gson();
-        System.out.println(seats);
-        Application.getPubSub().sendMessage(seats);
+        System.out.println(quotes);
+        Application.getPubSub().sendMessage(quotes,SecurityFilter.getUser().getEmail());
     }
 
     @GetMapping("/api/getBookings")
@@ -136,23 +138,23 @@ public class BookingRestController {
         System.out.println(body);
         JsonObject jsonObject = JsonParser.parseString(body).getAsJsonObject();
 
-        // Get the "data" field from the "message" object
         String data = jsonObject.getAsJsonObject("message").get("data").getAsString();
+        String email = jsonObject.getAsJsonObject("message").getAsJsonObject("attributes").get("userEmail").getAsString();
         String decodedData = new String(java.util.Base64.getDecoder().decode(data));
         System.out.println(decodedData);
 
-        Type seatListType = new TypeToken<List<Seat>>() {}.getType();
-        List<Seat> seats = gson.fromJson(decodedData, seatListType);
+        Type quoteList = new TypeToken<List<Quote>>() {}.getType();
+        List<Quote> quotes = gson.fromJson(decodedData, quoteList);
         Collection<Ticket> tickets = new HashSet<>();
         UUID bookingUUID = UUID.randomUUID();
-        for (Seat seat : seats) {
+        for (Quote quote : quotes) {
             tickets.add(webClientBuilder
-                    .baseUrl("https://" + seat.getTrainCompany() + "/")
+                    .baseUrl("https://" + quote.getTrainCompany() + "/")
                     .build()
                     .put()
                     .uri(uriBuilder -> uriBuilder
-                            .pathSegment("trains", seat.getTrainId().toString(), "seats", seat.getSeatId().toString(), "ticket")
-                            .queryParam("customer", SecurityFilter.getUser().getEmail())
+                            .pathSegment("trains", quote.getTrainId().toString(), "seats", quote.getSeatId().toString(), "ticket")
+                            .queryParam("customer", email)
                             .queryParam("bookingReference", bookingUUID.toString())
                             .queryParam("key", API_KEY)
                             .build())
@@ -161,11 +163,22 @@ public class BookingRestController {
                     })
                     .block());
         }
-        Booking booking = new Booking(bookingUUID, LocalDateTime.now(), tickets.stream().toList(), SecurityFilter.getUser().getEmail());
-        ArrayList<Booking> bookings = bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());
+        if(quotes.size() != tickets.size()){
+            for(Ticket ticket : tickets){
+                webClientBuilder
+                        .baseUrl("https://" + ticket.getTrainCompany() + "/")
+                        .build()
+                        .delete()
+                        .uri(uriBuilder -> uriBuilder
+                                .pathSegment("trains", ticket.getTrainId().toString(), "seats", ticket.getSeatId().toString(), "ticket")
+                                .queryParam("key", API_KEY)
+                                .build());
+            }
+        }
+        Booking booking = new Booking(bookingUUID, LocalDateTime.now(), tickets.stream().toList(), email);
+        ArrayList<Booking> bookings = bookingMap.getOrDefault(email, new ArrayList<>());
         bookings.add(booking);
-        bookingMap.putIfAbsent(SecurityFilter.getUser().getEmail(), bookings);
-        System.out.println("SUCCESS???!!!");
+        bookingMap.putIfAbsent(email, bookings);
     }
     @GetMapping("/api/getBestCustomers")
     Collection<String> getBestCustomers() {

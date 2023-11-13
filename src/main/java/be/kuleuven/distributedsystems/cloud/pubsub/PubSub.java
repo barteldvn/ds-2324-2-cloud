@@ -40,7 +40,7 @@ public class PubSub {
             System.out.println("testttt");
             createTopic();
             System.out.println("testt");
-            createPublisher("http://localhost:8080/subscription/confirmQuote");
+            createPublisher();
             System.out.println("testtt");
             createSubscription("http://localhost:8080/subscription/confirmQuote");
             System.out.println("testttt");
@@ -65,11 +65,11 @@ public class PubSub {
         }
     }
 
-    public void sendMessage(String message) throws ExecutionException, InterruptedException {
-        System.out.println("Published message ID: ");
+    public void sendMessage(String message, String userEmail) throws ExecutionException, InterruptedException {
         ByteString data = ByteString.copyFromUtf8(message);
         PubsubMessage pubsubMessage = PubsubMessage.newBuilder()
                 .setData(data)
+                .putAttributes("userEmail", userEmail)
                 .build();
         ApiFuture<String> future = publisher.publish(pubsubMessage);
         String messageId = future.get();
@@ -91,7 +91,7 @@ public class PubSub {
         }
     }
 
-    public void createPublisher(String pushEndpoint) throws InterruptedException, IOException {
+    public void createPublisher() throws InterruptedException, IOException {
         publisher = com.google.cloud.pubsub.v1.Publisher
                 .newBuilder(topicName)
                 .setChannelProvider(channelProvider)
