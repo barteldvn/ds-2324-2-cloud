@@ -56,6 +56,7 @@ public class BookingRestController {
                         .build())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<CollectionModel<Train>>() {})
+                .retry(10)
                 .block();
         Collection<Train> allTrains = new ArrayList<Train>(reliableTrains.getContent().stream().toList()){};
         allTrains.addAll(unreliabletrains.getContent());
@@ -85,6 +86,7 @@ public class BookingRestController {
                         .build(train.getTrainId()))
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<CollectionModel<LocalDateTime>>() {})
+                .retry(10)
                 .block()
                 .getContent();
     }
@@ -106,6 +108,7 @@ public class BookingRestController {
                         .build(train.getTrainId()))
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<CollectionModel<Seat>>() {})
+                .retry(10)
                 .block()
                 .getContent();
         return seats.stream().collect(Collectors.groupingBy(Seat::getType));
@@ -123,6 +126,7 @@ public class BookingRestController {
                         .build())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<Seat>() {})
+                .retry(10)
                 .block();
     }
 
@@ -172,8 +176,8 @@ public class BookingRestController {
                             .queryParam("key", API_KEY)
                             .build())
                     .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Ticket>() {
-                    })
+                    .bodyToMono(new ParameterizedTypeReference<Ticket>() {})
+                    .retry(10)
                     .block());
         }
         if(quotes.size() != tickets.size()){
