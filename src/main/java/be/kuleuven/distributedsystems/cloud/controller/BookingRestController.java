@@ -4,7 +4,6 @@ import be.kuleuven.distributedsystems.cloud.Application;
 import be.kuleuven.distributedsystems.cloud.auth.SecurityFilter;
 import be.kuleuven.distributedsystems.cloud.entities.*;
 import be.kuleuven.distributedsystems.cloud.pubsub.PubSub;
-import be.kuleuven.distributedsystems.cloud.pubsub.Publisher;
 import com.google.api.client.json.Json;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
@@ -36,7 +35,7 @@ public class BookingRestController {
 
     @GetMapping("/api/getTrains")
     Collection<Train> getAllTrains(){
-        return webClientBuilder
+        CollectionModel<Train> reliableTrains = webClientBuilder
                 .baseUrl("https://reliabletrains.com")
                 .build()
                 .get()
@@ -46,8 +45,22 @@ public class BookingRestController {
                         .build())
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<CollectionModel<Train>>() {})
-                .block()
-                .getContent();
+                .block();
+        CollectionModel<Train> unreliabletrains = webClientBuilder
+                .baseUrl("https://unreliabletrains.com")
+                .build()
+                .get()
+                .uri(uriBuilder -> uriBuilder
+                        .pathSegment("trains")
+                        .queryParam("key", API_KEY)
+                        .build())
+                .retrieve()
+                .bodyToMono(new ParameterizedTypeReference<CollectionModel<Train>>() {})
+                .block();
+        Collection<Train> allTrains = new ArrayList<Train>(reliableTrains.getContent().stream().toList()){};
+        allTrains.addAll(unreliabletrains.getContent());
+        System.out.println(allTrains);
+        return allTrains;
     }
 
     @GetMapping("/api/getTrain")
