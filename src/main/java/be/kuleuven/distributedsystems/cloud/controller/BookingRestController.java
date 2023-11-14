@@ -3,16 +3,14 @@ package be.kuleuven.distributedsystems.cloud.controller;
 import be.kuleuven.distributedsystems.cloud.Application;
 import be.kuleuven.distributedsystems.cloud.auth.SecurityFilter;
 import be.kuleuven.distributedsystems.cloud.entities.*;
-import be.kuleuven.distributedsystems.cloud.pubsub.PubSub;
-import com.google.api.client.json.Json;
+import com.google.api.core.ApiFuture;
+import com.google.cloud.firestore.*;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
-import com.google.pubsub.v1.Subscription;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.hateoas.CollectionModel;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
@@ -139,15 +137,28 @@ public class BookingRestController {
     }
 
     @GetMapping("/api/getBookings")
-    Collection<Booking> getBookings() {
+    Collection<Booking> getBookings() throws ExecutionException, InterruptedException {
+        System.out.println("testing");
+        read_data();
         return bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());
     }
 
     @GetMapping("/api/getAllBookings")
-    Collection<Booking> getAllBookings() {
+    Collection<Booking> getAllBookings() throws ExecutionException, InterruptedException {
+        read_data();
         return bookingMap.values().stream().flatMap(List::stream).toList();
     }
 
+    void read_data() throws InterruptedException, ExecutionException {
+        ApiFuture<QuerySnapshot> query = Application.db.collection("users").get();
+        QuerySnapshot querySnapshot = query.get();
+        List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
+        String res = "nothing here";
+        for (QueryDocumentSnapshot document : documents) {
+            res = document.getString("booking");
+        }
+        System.out.println(res);
+    }
 
     @PostMapping("/subscription/confirmQuote")
     void subscription(@RequestBody String body) {
@@ -180,6 +191,7 @@ public class BookingRestController {
                     .retry(10)
                     .block());
         }
+        /*
         if(quotes.size() != tickets.size()){
             for(Ticket ticket : tickets){
                 webClientBuilder
@@ -192,10 +204,21 @@ public class BookingRestController {
                                 .build());
             }
         }
+
+         */
+
         Booking booking = new Booking(bookingUUID, LocalDateTime.now(), tickets.stream().toList(), email);
+        AddBookingFirestore(booking);
         ArrayList<Booking> bookings = bookingMap.getOrDefault(email, new ArrayList<>());
         bookings.add(booking);
         bookingMap.putIfAbsent(email, bookings);
+    }
+
+    private void AddBookingFirestore(Booking booking) {
+        DocumentReference docRef = Application.db.collection("users").document(booking.getId().toString());
+        Map<String, Object> data = new HashMap<>();
+        data.put("booking", booking);
+        System.out.println("Added booking");
     }
     @GetMapping("/api/getBestCustomers")
     Collection<String> getBestCustomers() {

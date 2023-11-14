@@ -1,6 +1,8 @@
 package be.kuleuven.distributedsystems.cloud;
 
 import be.kuleuven.distributedsystems.cloud.pubsub.PubSub;
+import com.google.cloud.firestore.Firestore;
+import com.google.cloud.firestore.FirestoreOptions;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ApplicationContext;
@@ -14,7 +16,6 @@ import org.springframework.security.web.firewall.HttpFirewall;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
-import javax.annotation.Resource;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -24,13 +25,25 @@ import java.util.concurrent.ExecutionException;
 public class Application {
 
     public static PubSub pubSub;
+    public static Firestore db;
 
     @SuppressWarnings("unchecked")
     public static void main(String[] args) throws IOException, ExecutionException, InterruptedException {
         System.setProperty("server.port", System.getenv().getOrDefault("PORT", "8080"));
         ApplicationContext context = SpringApplication.run(Application.class, args);
+        setup(projectId());
         // TODO: (level 2) load this data into Firestore
         String data = new String(new ClassPathResource("data.json").getInputStream().readAllBytes());
+    }
+
+    static void setup(String projectId) {
+        db = FirestoreOptions.getDefaultInstance()
+                .toBuilder()
+                .setProjectId(projectId)
+                .setCredentials(new FirestoreOptions.EmulatorCredentials())
+                .setEmulatorHost("localhost:8084")
+                .build()
+                .getService();
     }
 
     @Bean
@@ -47,6 +60,17 @@ public class Application {
     public static PubSub getPubSub() throws IOException, ExecutionException, InterruptedException {
         if(pubSub == null) pubSub = new PubSub(Application.projectId(), "confirm-quote", "test");
         return pubSub;
+    }
+
+    @Bean
+    public Firestore make_db() {
+        return FirestoreOptions.getDefaultInstance()
+                .toBuilder()
+                .setProjectId(projectId())
+                .setCredentials(new FirestoreOptions.EmulatorCredentials())
+                .setEmulatorHost("localhost:8084")
+                .build()
+                .getService();
     }
 
     /*
