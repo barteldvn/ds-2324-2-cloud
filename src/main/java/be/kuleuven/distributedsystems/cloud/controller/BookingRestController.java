@@ -23,6 +23,7 @@ import java.rmi.RemoteException;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @RestController
@@ -133,9 +134,8 @@ public class BookingRestController {
     @PostMapping("/api/confirmQuotes")
     void confirmQuotes(@RequestBody String quotes) throws ExecutionException, InterruptedException, IOException {
         System.out.println("test");
-        Gson gson = new Gson();
-        System.out.println(quotes);
         Application.getPubSub().sendMessage(quotes,SecurityFilter.getUser().getEmail());
+        TimeUnit.SECONDS.sleep(1);
     }
 
     @GetMapping("/api/getBookings")
@@ -160,36 +160,44 @@ public class BookingRestController {
         String decodedData = new String(java.util.Base64.getDecoder().decode(data));
         System.out.println(decodedData);
 
-        Type quoteList = new TypeToken<List<Quote>>() {}.getType();
+        Type quoteList = new TypeToken<List<Quote>>() {
+        }.getType();
         List<Quote> quotes = gson.fromJson(decodedData, quoteList);
         Collection<Ticket> tickets = new HashSet<>();
         UUID bookingUUID = UUID.randomUUID();
-        for (Quote quote : quotes) {
-            tickets.add(webClientBuilder
-                    .baseUrl("https://" + quote.getTrainCompany() + "/")
-                    .build()
-                    .put()
-                    .uri(uriBuilder -> uriBuilder
-                            .pathSegment("trains", quote.getTrainId().toString(), "seats", quote.getSeatId().toString(), "ticket")
-                            .queryParam("customer", email)
-                            .queryParam("bookingReference", bookingUUID.toString())
-                            .queryParam("key", API_KEY)
-                            .build())
-                    .retrieve()
-                    .bodyToMono(new ParameterizedTypeReference<Ticket>() {})
-                    .retry(10)
-                    .block());
-        }
-        if(quotes.size() != tickets.size()){
-            for(Ticket ticket : tickets){
+        try {
+            for (Quote quote : quotes) {
+                tickets.add(webClientBuilder
+                        .baseUrl("https://" + quote.getTrainCompany() + "/")
+                        .build()
+                        .put()
+                        .uri(uriBuilder -> uriBuilder
+                                .pathSegment("trains", quote.getTrainId().toString(), "seats", quote.getSeatId().toString(), "ticket")
+                                .queryParam("customer", email)
+                                .queryParam("bookingReference", bookingUUID.toString())
+                                .queryParam("key", API_KEY)
+                                .build())
+                        .retrieve()
+                        .bodyToMono(new ParameterizedTypeReference<Ticket>() {
+                        })
+                        .retry(10)
+                        .block());
+            }
+        } catch (Exception e) {
+            for (Ticket ticket : tickets) {
                 webClientBuilder
                         .baseUrl("https://" + ticket.getTrainCompany() + "/")
                         .build()
                         .delete()
                         .uri(uriBuilder -> uriBuilder
-                                .pathSegment("trains", ticket.getTrainId().toString(), "seats", ticket.getSeatId().toString(), "ticket")
+                                .pathSegment("trains", ticket.getTrainId().toString(), "seats", ticket.getSeatId().toString(), "ticket", ticket.getTicketId().toString())
                                 .queryParam("key", API_KEY)
-                                .build());
+                                .build())
+                        .retrieve()
+                        .bodyToMono(Map.class)
+                        .retry(10)
+                        .block();
+                return;
             }
         }
         Booking booking = new Booking(bookingUUID, LocalDateTime.now(), tickets.stream().toList(), email);
