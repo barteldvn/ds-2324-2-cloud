@@ -47,7 +47,7 @@ public class BookingRestController {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<CollectionModel<Train>>() {})
                 .block();
-        CollectionModel<Train> unreliabletrains = webClientBuilder
+        CollectionModel<Train> unreliableTrains = webClientBuilder
                 .baseUrl("https://unreliabletrains.com")
                 .build()
                 .get()
@@ -60,7 +60,7 @@ public class BookingRestController {
                 .retry(10)
                 .block();
         Collection<Train> allTrains = new ArrayList<Train>(reliableTrains.getContent().stream().toList()){};
-        allTrains.addAll(unreliabletrains.getContent());
+        allTrains.addAll(unreliableTrains.getContent());
         System.out.println(allTrains);
         return allTrains;
     }
