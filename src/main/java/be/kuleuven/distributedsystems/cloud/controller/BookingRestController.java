@@ -20,6 +20,8 @@ import javax.annotation.Resource;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.rmi.RemoteException;
+import java.sql.Timestamp;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -139,7 +141,8 @@ public class BookingRestController {
     }
 
     @GetMapping("/api/getBookings")
-    Collection<Booking> getBookings() {
+    Collection<Booking> getBookings() throws InterruptedException, ExecutionException {
+        read_data();
         return bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());
     }
 
@@ -149,18 +152,22 @@ public class BookingRestController {
     }
 
     void read_data() throws InterruptedException, ExecutionException {
-        ApiFuture<QuerySnapshot> query = Application.db.collection("users").get();
+        ApiFuture<QuerySnapshot> query = Application.db.collection("bookings").get();
         QuerySnapshot querySnapshot = query.get();
         List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
-        String res = "nothing here";
+        //System.out.println(documents);
         for (QueryDocumentSnapshot document : documents) {
-            res = document.getString("booking");
+            String id = document.get("bookingID",String.class);
+            com.google.cloud.Timestamp time = document.get("bookingTime", com.google.cloud.Timestamp.class);
+            List<Map<String,Object>> tickets = (List<Map<String, Object>>) document.get("bookingTickets");
+            String costumer = document.get("bookingEmail",String.class);
+            System.out.printf("Id: %s, time:" + time + ", tickets: %s, email: %s", id, tickets, costumer);
         }
-        System.out.println(res);
+        //System.out.println(res);
     }
 
     @PostMapping("/subscription/confirmQuote")
-    void subscription(@RequestBody String body) {
+    void subscription(@RequestBody String body) throws ExecutionException, InterruptedException {
         Gson gson = new Gson();
         System.out.println(body);
         JsonObject jsonObject = JsonParser.parseString(body).getAsJsonObject();
@@ -217,11 +224,34 @@ public class BookingRestController {
         bookingMap.putIfAbsent(email, bookings);
     }
 
-    private void AddBookingFirestore(Booking booking) {
-        DocumentReference docRef = Application.db.collection("users").document(booking.getId().toString());
+    private void AddBookingFirestore(Booking booking) throws ExecutionException, InterruptedException {
+        DocumentReference docRef = Application.db.collection("bookings").document(booking.getId().toString());
+        ApiFuture<WriteResult> result = docRef.set(EncodeBooking(booking));
+        System.out.println("Update time : " + result.get().getUpdateTime());
+    }
+
+    private Map<String, Object> EncodeBooking(Booking booking) {
         Map<String, Object> data = new HashMap<>();
-        data.put("booking", booking);
-        System.out.println("Added booking");
+        data.put("bookingID", booking.getId().toString());
+        data.put("bookingTime", Timestamp.valueOf(booking.getTime()));
+        data.put("bookingTickets", EncodeTickets(booking.getTickets()));
+        data.put("bookingEmail", booking.getCustomer());
+        return data;
+    }
+
+    private List<Map<String, Object>> EncodeTickets(List<Ticket> tickets) {
+        List<Map<String, Object>> encodedTickets = new ArrayList<>();
+        for(Ticket ticket : tickets) {
+            Map<String, Object> data = new HashMap<>();
+            data.put("trainCompany", ticket.getTrainCompany());
+            data.put("trainId", ticket.getTicketId().toString());
+            data.put("seatId", ticket.getSeatId().toString());
+            data.put("ticketId", ticket.getTicketId().toString());
+            data.put("customer", ticket.getCustomer());
+            data.put("bookingReference", ticket.getBookingReference());
+            encodedTickets.add(data);
+        }
+        return encodedTickets;
     }
     @GetMapping("/api/getBestCustomers")
     Collection<String> getBestCustomers() {

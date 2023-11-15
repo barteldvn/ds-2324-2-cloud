@@ -28,7 +28,6 @@ public class SecurityFilter extends OncePerRequestFilter {
         // TODO: (level 1) decode Identity Token and assign correct email and role
         // TODO: (level 2) verify Identity Token
         String idToken = request.getHeader("Authorization");
-        System.out.println(idToken);
         if(idToken!= null) {
             try {
                 int parseIndex = idToken.indexOf(" ");

@@ -37,13 +37,9 @@ public class PubSub {
 
             topicName = TopicName.of(projectId, topicId);
             subscriptionName = SubscriptionName.of(projectId, subscriptionId);
-            System.out.println("testttt");
             createTopic();
-            System.out.println("testt");
             createPublisher();
-            System.out.println("testtt");
             createSubscription("http://localhost:8080/subscription/confirmQuote");
-            System.out.println("testttt");
         }
         catch (Exception e){
 
