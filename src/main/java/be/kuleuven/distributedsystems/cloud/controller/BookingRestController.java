@@ -70,6 +70,8 @@ public class BookingRestController {
     @GetMapping("/api/getTrain")
     Train getTrain(@RequestParam String trainCompany, @RequestParam String trainId) throws RemoteException {
         Collection<Train> trains =  getAllTrains();
+        System.out.println(trainId);
+        System.out.println(trainCompany);
         for (Train train : trains){
             if (Objects.equals(train.getTrainCompany(), trainCompany) && Objects.equals(train.getTrainId().toString(), trainId)) return train;
         }
@@ -142,7 +144,9 @@ public class BookingRestController {
 
     @GetMapping("/api/getBookings")
     Collection<Booking> getBookings() throws InterruptedException, ExecutionException {
-        read_data();
+        if(bookingMap != null){
+            bookingMap.put(SecurityFilter.getUser().getEmail(), readBookings());
+        }
         return bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());
     }
 
@@ -151,19 +155,55 @@ public class BookingRestController {
         return bookingMap.values().stream().flatMap(List::stream).toList();
     }
 
-    void read_data() throws InterruptedException, ExecutionException {
+    private ArrayList<Booking> readBookings() throws InterruptedException, ExecutionException {
         ApiFuture<QuerySnapshot> query = Application.db.collection("bookings").get();
         QuerySnapshot querySnapshot = query.get();
         List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
-        //System.out.println(documents);
+        ArrayList<Booking> bookings = new ArrayList<>();
         for (QueryDocumentSnapshot document : documents) {
             String id = document.get("bookingID",String.class);
             com.google.cloud.Timestamp time = document.get("bookingTime", com.google.cloud.Timestamp.class);
             List<Map<String,Object>> tickets = (List<Map<String, Object>>) document.get("bookingTickets");
             String costumer = document.get("bookingEmail",String.class);
+            bookings.add(DecodeBooking(id, time, tickets, costumer));
             System.out.printf("Id: %s, time:" + time + ", tickets: %s, email: %s", id, tickets, costumer);
         }
-        //System.out.println(res);
+        System.out.println("Bookings: " + bookings);
+        return bookings;
+    }
+
+    private Booking DecodeBooking(String id, com.google.cloud.Timestamp time, List<Map<String, Object>> tickets, String costumer) {
+        UUID bookingId = UUID.fromString(id);
+        LocalDateTime bookingTime = time.toSqlTimestamp().toLocalDateTime();
+        List<Ticket> bookingTickets = DecodeTickets(tickets);
+        String bookingCustomer = costumer;
+        Booking decodedBooking = new Booking(bookingId, bookingTime, bookingTickets, bookingCustomer);
+        return decodedBooking;
+    }
+
+    private List<Ticket> DecodeTickets(List<Map<String, Object>> tickets) {
+        List<Ticket> decodedTickets = new ArrayList<>();
+        for(Map<String, Object> ticket : tickets){
+           decodedTickets.add(DecodeTicket(ticket));
+        }
+        return decodedTickets;
+    }
+
+    private Ticket DecodeTicket(Map<String, Object> ticket) {
+        String trainCompany = (String) ticket.get("trainCompany");
+        String trainId = (String) ticket.get("trainId");
+        String seatId = (String) ticket.get("seatId");
+        String ticketId = (String) ticket.get("ticketId");
+        String customer = (String) ticket.get("customer");
+        String bookingReference = (String) ticket.get("bookingReference");
+        Ticket decodedTicket = new Ticket(
+                trainCompany,
+                UUID.fromString(trainId),
+                UUID.fromString(seatId),
+                UUID.fromString(ticketId),
+                customer,
+                bookingReference);
+        return decodedTicket;
     }
 
     @PostMapping("/subscription/confirmQuote")
@@ -244,7 +284,7 @@ public class BookingRestController {
         for(Ticket ticket : tickets) {
             Map<String, Object> data = new HashMap<>();
             data.put("trainCompany", ticket.getTrainCompany());
-            data.put("trainId", ticket.getTicketId().toString());
+            data.put("trainId", ticket.getTrainId().toString());
             data.put("seatId", ticket.getSeatId().toString());
             data.put("ticketId", ticket.getTicketId().toString());
             data.put("customer", ticket.getCustomer());
