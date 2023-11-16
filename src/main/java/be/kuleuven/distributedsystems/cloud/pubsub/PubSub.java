@@ -48,7 +48,6 @@ public class PubSub {
                                     .setTransportChannelProvider(channelProvider)
                                     .setCredentialsProvider(credentialsProvider)
                                     .build());
-            topic = topicClient.getTopic(topicName);
             if(topicClient.getTopic(topicName) == null) topic = topicClient.createTopic(topicName);
         } catch (IOException e) {
             throw new RuntimeException(e);
