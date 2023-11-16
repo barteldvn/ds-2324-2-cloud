@@ -24,7 +24,7 @@ import java.util.concurrent.ExecutionException;
 @SpringBootApplication
 public class Application {
 
-    public static PubSub pubSub;
+    private static PubSub pubSub;
     public static Firestore db;
 
     @SuppressWarnings("unchecked")
