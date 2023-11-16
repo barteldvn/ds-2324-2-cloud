@@ -40,6 +40,7 @@ public class BookingRestController {
                 .retrieve()
                 .bodyToMono(new ParameterizedTypeReference<CollectionModel<Train>>() {})
                 .block();
+
         CollectionModel<Train> unreliableTrains = webClientBuilder
                 .baseUrl("https://unreliabletrains.com")
                 .build()
@@ -54,15 +55,12 @@ public class BookingRestController {
                 .block();
         Collection<Train> allTrains = new ArrayList<Train>(reliableTrains.getContent().stream().toList()){};
         allTrains.addAll(unreliableTrains.getContent());
-        System.out.println(allTrains);
         return allTrains;
     }
 
     @GetMapping("/api/getTrain")
     Train getTrain(@RequestParam String trainCompany, @RequestParam String trainId) throws RemoteException {
         Collection<Train> trains =  getAllTrains();
-        System.out.println(trainId);
-        System.out.println(trainCompany);
         for (Train train : trains){
             if (Objects.equals(train.getTrainCompany(), trainCompany) && Objects.equals(train.getTrainId().toString(), trainId)) return train;
         }
@@ -128,8 +126,8 @@ public class BookingRestController {
 
     @PostMapping("/api/confirmQuotes")
     void confirmQuotes(@RequestBody String quotes) throws InterruptedException {
-        System.out.println("test");
         Application.getPubSub().sendMessage(quotes,SecurityFilter.getUser().getEmail());
+        // allow short timeout otherwise we have to refresh the page for the booking to appear
         TimeUnit.SECONDS.sleep(1);
     }
 

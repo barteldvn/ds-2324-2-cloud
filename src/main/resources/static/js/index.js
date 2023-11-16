@@ -1,4 +1,4 @@
-import { h, render } from "https://esm.sh/preact@10.17.1";
+import { h, render } from "https://esm.sh/preact@10.19.2";
 import Router from "https://esm.sh/preact-router@4.1.2";
 import htm from "https://esm.sh/htm@3.1.1";
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.3.0/firebase-app.js";
@@ -66,7 +66,7 @@ onAuthStateChanged(auth, (user) => {
                 <${Manager} path="/manager"/>
             </${Router}>
         `,
-        document.body
+        document.body,
       );
     }
     rendered = true;
