@@ -20,7 +20,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 @RestController
-public class confirmQuoteSubscriber {
+public class ConfirmQuotesWorker {
     private final String API_KEY = "JViZPgNadspVcHsMbDFrdGg0XXxyiE";
     @Resource(name = "webClientBuilder")
     private WebClient.Builder webClientBuilder;
@@ -30,14 +30,11 @@ public class confirmQuoteSubscriber {
     void subscription(@RequestBody String body) throws ExecutionException, InterruptedException {
         Gson gson = new Gson();
         JsonObject jsonObject = JsonParser.parseString(body).getAsJsonObject();
-
         String data = jsonObject.getAsJsonObject("message").get("data").getAsString();
         String email = jsonObject.getAsJsonObject("message").getAsJsonObject("attributes").get("userEmail").getAsString();
-
         String decodedData = new String(java.util.Base64.getDecoder().decode(data));
-        System.out.println(decodedData);
-
         List<Quote> quotes = gson.fromJson(decodedData, new TypeToken<List<Quote>>(){}.getType());
+
         Set<Ticket> tickets = new HashSet<>();
         UUID bookingUUID = UUID.randomUUID();
         try {
