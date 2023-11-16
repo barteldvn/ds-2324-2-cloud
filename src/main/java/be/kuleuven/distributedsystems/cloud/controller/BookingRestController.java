@@ -27,7 +27,6 @@ public class BookingRestController {
     private final String API_KEY = "JViZPgNadspVcHsMbDFrdGg0XXxyiE";
     @Resource(name = "webClientBuilder")
     private WebClient.Builder webClientBuilder;
-    private HashMap<String, ArrayList<Booking>> bookingMap = new HashMap<>();
 
     @GetMapping("/api/getTrains")
     Collection<Train> getAllTrains(){
