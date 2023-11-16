@@ -48,7 +48,7 @@ public class PubSub {
                                     .setTransportChannelProvider(channelProvider)
                                     .setCredentialsProvider(credentialsProvider)
                                     .build());
-            if(topicClient.getTopic(topicName) == null) topic = topicClient.createTopic(topicName);
+            topic = topicClient.createTopic(topicName);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -81,8 +81,7 @@ public class PubSub {
             PushConfig pushConfig = PushConfig.newBuilder()
                     .setPushEndpoint(pushEndpoint)
                     .build();
-            if (subscriptionAdminClient.getSubscription(subscriptionName) == null)
-                subscriptionAdminClient.createSubscription(subscriptionName, topicName, pushConfig, 60);
+            subscriptionAdminClient.createSubscription(subscriptionName, topicName, pushConfig, 60);
         }
         catch (IOException e) {
             throw new RuntimeException(e);
