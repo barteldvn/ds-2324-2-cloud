@@ -135,16 +135,6 @@ public class BookingRestController {
         TimeUnit.SECONDS.sleep(1);
     }
 
-    @GetMapping("/api/getBookings")
-    Collection<Booking> getBookings() {
-        return Firestore.getBookings(SecurityFilter.getUser().getEmail());
-    }
-
-    @GetMapping("/api/getAllBookings")
-    Collection<Booking> getAllBookings() {
-        return Firestore.getBookings();
-    }
-
     @PostMapping("/subscription/confirmQuote")
     void subscription(@RequestBody String body) throws ExecutionException, InterruptedException {
         Gson gson = new Gson();
@@ -195,6 +185,16 @@ public class BookingRestController {
             }
         }
         Firestore.addBooking(new Booking(bookingUUID, LocalDateTime.now(), tickets.stream().toList(), email));
+    }
+
+    @GetMapping("/api/getBookings")
+    Collection<Booking> getBookings() {
+        return Firestore.getBookings(SecurityFilter.getUser().getEmail());
+    }
+
+    @GetMapping("/api/getAllBookings")
+    Collection<Booking> getAllBookings() {
+        return Firestore.getBookings();
     }
 
     @GetMapping("/api/getBestCustomers")
