@@ -1,9 +1,10 @@
 package be.kuleuven.distributedsystems.cloud.entities;
 
+import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-public class Seat {
+public class Seat implements Serializable {
     private String trainCompany;
     private UUID trainId;
     private UUID seatId;

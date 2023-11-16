@@ -3,25 +3,18 @@ package be.kuleuven.distributedsystems.cloud.controller;
 import be.kuleuven.distributedsystems.cloud.Application;
 import be.kuleuven.distributedsystems.cloud.auth.SecurityFilter;
 import be.kuleuven.distributedsystems.cloud.entities.*;
-import com.google.api.core.ApiFuture;
-import com.google.cloud.firestore.*;
+import be.kuleuven.distributedsystems.cloud.firestore.Firestore;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
-import com.google.pubsub.v1.Subscription;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.hateoas.CollectionModel;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import javax.annotation.Resource;
-import java.io.IOException;
-import java.lang.reflect.Type;
 import java.rmi.RemoteException;
-import java.sql.Timestamp;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
@@ -136,91 +129,35 @@ public class BookingRestController {
     }
 
     @PostMapping("/api/confirmQuotes")
-    void confirmQuotes(@RequestBody String quotes) throws ExecutionException, InterruptedException, IOException {
+    void confirmQuotes(@RequestBody String quotes) throws InterruptedException {
         System.out.println("test");
         Application.getPubSub().sendMessage(quotes,SecurityFilter.getUser().getEmail());
         TimeUnit.SECONDS.sleep(1);
     }
 
     @GetMapping("/api/getBookings")
-    Collection<Booking> getBookings() throws InterruptedException, ExecutionException {
-        if(bookingMap != null){
-            bookingMap.put(SecurityFilter.getUser().getEmail(), readBookings());
-        }
-        return bookingMap.getOrDefault(SecurityFilter.getUser().getEmail(), new ArrayList<>());
+    Collection<Booking> getBookings() {
+        return Firestore.getBookings(SecurityFilter.getUser().getEmail());
     }
 
     @GetMapping("/api/getAllBookings")
     Collection<Booking> getAllBookings() {
-        return bookingMap.values().stream().flatMap(List::stream).toList();
-    }
-
-    private ArrayList<Booking> readBookings() throws InterruptedException, ExecutionException {
-        ApiFuture<QuerySnapshot> query = Application.db.collection("bookings").get();
-        QuerySnapshot querySnapshot = query.get();
-        List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
-        ArrayList<Booking> bookings = new ArrayList<>();
-        for (QueryDocumentSnapshot document : documents) {
-            String id = document.get("bookingID",String.class);
-            com.google.cloud.Timestamp time = document.get("bookingTime", com.google.cloud.Timestamp.class);
-            List<Map<String,Object>> tickets = (List<Map<String, Object>>) document.get("bookingTickets");
-            String costumer = document.get("bookingEmail",String.class);
-            bookings.add(DecodeBooking(id, time, tickets, costumer));
-            System.out.printf("Id: %s, time:" + time + ", tickets: %s, email: %s", id, tickets, costumer);
-        }
-        System.out.println("Bookings: " + bookings);
-        return bookings;
-    }
-
-    private Booking DecodeBooking(String id, com.google.cloud.Timestamp time, List<Map<String, Object>> tickets, String costumer) {
-        UUID bookingId = UUID.fromString(id);
-        LocalDateTime bookingTime = time.toSqlTimestamp().toLocalDateTime();
-        List<Ticket> bookingTickets = DecodeTickets(tickets);
-        String bookingCustomer = costumer;
-        Booking decodedBooking = new Booking(bookingId, bookingTime, bookingTickets, bookingCustomer);
-        return decodedBooking;
-    }
-
-    private List<Ticket> DecodeTickets(List<Map<String, Object>> tickets) {
-        List<Ticket> decodedTickets = new ArrayList<>();
-        for(Map<String, Object> ticket : tickets){
-           decodedTickets.add(DecodeTicket(ticket));
-        }
-        return decodedTickets;
-    }
-
-    private Ticket DecodeTicket(Map<String, Object> ticket) {
-        String trainCompany = (String) ticket.get("trainCompany");
-        String trainId = (String) ticket.get("trainId");
-        String seatId = (String) ticket.get("seatId");
-        String ticketId = (String) ticket.get("ticketId");
-        String customer = (String) ticket.get("customer");
-        String bookingReference = (String) ticket.get("bookingReference");
-        Ticket decodedTicket = new Ticket(
-                trainCompany,
-                UUID.fromString(trainId),
-                UUID.fromString(seatId),
-                UUID.fromString(ticketId),
-                customer,
-                bookingReference);
-        return decodedTicket;
+        return Firestore.getBookings();
     }
 
     @PostMapping("/subscription/confirmQuote")
     void subscription(@RequestBody String body) throws ExecutionException, InterruptedException {
         Gson gson = new Gson();
-        System.out.println(body);
         JsonObject jsonObject = JsonParser.parseString(body).getAsJsonObject();
 
         String data = jsonObject.getAsJsonObject("message").get("data").getAsString();
         String email = jsonObject.getAsJsonObject("message").getAsJsonObject("attributes").get("userEmail").getAsString();
+
         String decodedData = new String(java.util.Base64.getDecoder().decode(data));
         System.out.println(decodedData);
 
-        Type quoteList = new TypeToken<List<Quote>>() {
-        }.getType();
-        List<Quote> quotes = gson.fromJson(decodedData, quoteList);
-        Collection<Ticket> tickets = new HashSet<>();
+        List<Quote> quotes = gson.fromJson(decodedData, new TypeToken<List<Quote>>(){}.getType());
+        Set<Ticket> tickets = new HashSet<>();
         UUID bookingUUID = UUID.randomUUID();
         try {
             for (Quote quote : quotes) {
@@ -257,52 +194,26 @@ public class BookingRestController {
                 return;
             }
         }
-        Booking booking = new Booking(bookingUUID, LocalDateTime.now(), tickets.stream().toList(), email);
-        AddBookingFirestore(booking);
-        ArrayList<Booking> bookings = bookingMap.getOrDefault(email, new ArrayList<>());
-        bookings.add(booking);
-        bookingMap.putIfAbsent(email, bookings);
+        Firestore.addBooking(new Booking(bookingUUID, LocalDateTime.now(), tickets.stream().toList(), email));
     }
 
-    private void AddBookingFirestore(Booking booking) throws ExecutionException, InterruptedException {
-        DocumentReference docRef = Application.db.collection("bookings").document(booking.getId().toString());
-        ApiFuture<WriteResult> result = docRef.set(EncodeBooking(booking));
-        System.out.println("Update time : " + result.get().getUpdateTime());
-    }
-
-    private Map<String, Object> EncodeBooking(Booking booking) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("bookingID", booking.getId().toString());
-        data.put("bookingTime", Timestamp.valueOf(booking.getTime()));
-        data.put("bookingTickets", EncodeTickets(booking.getTickets()));
-        data.put("bookingEmail", booking.getCustomer());
-        return data;
-    }
-
-    private List<Map<String, Object>> EncodeTickets(List<Ticket> tickets) {
-        List<Map<String, Object>> encodedTickets = new ArrayList<>();
-        for(Ticket ticket : tickets) {
-            Map<String, Object> data = new HashMap<>();
-            data.put("trainCompany", ticket.getTrainCompany());
-            data.put("trainId", ticket.getTrainId().toString());
-            data.put("seatId", ticket.getSeatId().toString());
-            data.put("ticketId", ticket.getTicketId().toString());
-            data.put("customer", ticket.getCustomer());
-            data.put("bookingReference", ticket.getBookingReference());
-            encodedTickets.add(data);
-        }
-        return encodedTickets;
-    }
     @GetMapping("/api/getBestCustomers")
     Collection<String> getBestCustomers() {
-        return bookingMap.entrySet().stream()
-                .collect(Collectors.groupingBy(
-                entry -> entry.getValue().size(),
-                Collectors.mapping(Map.Entry::getKey, Collectors.toList())
-                ))
-                .entrySet().stream()
-                .max(Comparator.comparing(Map.Entry::getKey))
-                .map(Map.Entry::getValue)
-                .orElse(new ArrayList<>());
+        Map<String, Integer> ticketsPerEmail = Firestore.getBookings().stream()
+                .collect(Collectors.groupingBy(Booking::getCustomer,
+                        Collectors.summingInt(
+                        entry -> entry.getTickets().size())
+                ));
+        OptionalInt maxTotalTickets = ticketsPerEmail.values().stream()
+                .mapToInt(Integer::intValue)
+                .max();
+
+        if(maxTotalTickets.isPresent()){
+            return ticketsPerEmail.entrySet().stream()
+                    .filter(entry -> entry.getValue() == maxTotalTickets.getAsInt())
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+        }
+        return Collections.emptyList();
     }
 }

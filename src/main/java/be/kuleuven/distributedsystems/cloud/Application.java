@@ -28,7 +28,7 @@ public class Application {
     public static Firestore db;
 
     @SuppressWarnings("unchecked")
-    public static void main(String[] args) throws IOException, ExecutionException, InterruptedException {
+    public static void main(String[] args) throws IOException {
         System.setProperty("server.port", System.getenv().getOrDefault("PORT", "8080"));
         ApplicationContext context = SpringApplication.run(Application.class, args);
         setup(projectId());
@@ -57,20 +57,9 @@ public class Application {
     }
 
     @Bean
-    public static PubSub getPubSub() throws IOException, ExecutionException, InterruptedException {
+    public static PubSub getPubSub() {
         if(pubSub == null) pubSub = new PubSub(Application.projectId(), "confirm-quote", "test");
         return pubSub;
-    }
-
-    @Bean
-    public Firestore make_db() {
-        return FirestoreOptions.getDefaultInstance()
-                .toBuilder()
-                .setProjectId(projectId())
-                .setCredentials(new FirestoreOptions.EmulatorCredentials())
-                .setEmulatorHost("localhost:8084")
-                .build()
-                .getService();
     }
 
     /*
