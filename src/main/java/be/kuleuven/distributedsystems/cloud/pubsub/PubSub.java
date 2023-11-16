@@ -17,7 +17,6 @@ import io.grpc.ManagedChannelBuilder;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 
 public class PubSub {
 
@@ -49,7 +48,8 @@ public class PubSub {
                                     .setTransportChannelProvider(channelProvider)
                                     .setCredentialsProvider(credentialsProvider)
                                     .build());
-            topic = topicClient.createTopic(topicName);
+            topic = topicClient.getTopic(topicName);
+            if(topicClient.getTopic(topicName) == null) topic = topicClient.createTopic(topicName);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -82,7 +82,8 @@ public class PubSub {
             PushConfig pushConfig = PushConfig.newBuilder()
                     .setPushEndpoint(pushEndpoint)
                     .build();
-            subscriptionAdminClient.createSubscription(subscriptionName, topicName, pushConfig, 60);
+            if (subscriptionAdminClient.getSubscription(subscriptionName) == null)
+                subscriptionAdminClient.createSubscription(subscriptionName, topicName, pushConfig, 60);
         }
         catch (IOException e) {
             throw new RuntimeException(e);
