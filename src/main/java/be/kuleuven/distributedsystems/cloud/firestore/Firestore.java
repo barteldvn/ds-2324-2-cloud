@@ -33,10 +33,10 @@ public class Firestore {
         List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
         ArrayList<Booking> bookings = new ArrayList<>();
         for (QueryDocumentSnapshot document : documents) {
-            String costumer = document.get("bookingEmail",String.class);
+            String costumer = (String) document.get("bookingEmail");
             if(Objects.equals(costumer, email)) {
-                String id = document.get("bookingID", String.class);
-                com.google.cloud.Timestamp time = document.get("bookingTime", com.google.cloud.Timestamp.class);
+                String id = (String) document.get("bookingID");
+                com.google.cloud.Timestamp time = (com.google.cloud.Timestamp) document.get("bookingTime");
                 List<Map<String, Object>> tickets = (List<Map<String, Object>>) document.get("bookingTickets");
                 bookings.add(decodeBooking(id, time, tickets, costumer));
                 System.out.printf("Id: %s, time:" + time + ", tickets: %s, email: %s", id, tickets, costumer);
@@ -48,7 +48,7 @@ public class Firestore {
 
     public static ArrayList<Booking> getBookings() {
         ApiFuture<QuerySnapshot> query = Application.db.collection("bookings").get();
-        QuerySnapshot querySnapshot = null;
+        QuerySnapshot querySnapshot;
         try {
             querySnapshot = query.get();
         } catch (InterruptedException | ExecutionException e) {
@@ -57,9 +57,9 @@ public class Firestore {
         List<QueryDocumentSnapshot> documents = querySnapshot.getDocuments();
         ArrayList<Booking> bookings = new ArrayList<>();
         for (QueryDocumentSnapshot document : documents) {
-            String id = document.get("bookingID", String.class);
-            String costumer = document.get("bookingEmail",String.class);
-            com.google.cloud.Timestamp time = document.get("bookingTime", com.google.cloud.Timestamp.class);
+            String id = (String) document.get("bookingID");
+            String costumer = (String) document.get("bookingEmail");
+            com.google.cloud.Timestamp time = (com.google.cloud.Timestamp) document.get("bookingTime");
             List<Map<String, Object>> tickets = (List<Map<String, Object>>) document.get("bookingTickets");
             bookings.add(decodeBooking(id, time, tickets, costumer));
             System.out.printf("Id: %s, time:" + time + ", tickets: %s, email: %s", id, tickets, costumer);
