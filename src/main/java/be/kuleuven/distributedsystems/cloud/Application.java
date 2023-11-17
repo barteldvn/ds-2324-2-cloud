@@ -62,16 +62,6 @@ public class Application {
         return pubSub;
     }
 
-    @Bean
-    public Firestore make_db() {
-        return FirestoreOptions.getDefaultInstance()
-                .toBuilder()
-                .setProjectId(projectId())
-                .setCredentials(new FirestoreOptions.EmulatorCredentials())
-                .setEmulatorHost("localhost:8084")
-                .build()
-                .getService();
-    }
 
     /*
      * You can use this builder to create a Spring WebClient instance which can be used to make REST-calls.
